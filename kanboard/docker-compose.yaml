@@ -1,0 +1,35 @@
+version: "3.5"
+
+services:
+
+  kanboard:
+    image: kanboard/kanboard:${KANBOARD_VERSION}
+    container_name: "kanboard" 
+    restart: "unless-stopped"
+    env_file:
+      - "../global.env"
+    networks:
+      - traefik_net
+    volumes:
+      - ${KANBOARD_DATA_DIR}:/var/www/app/data
+      - ${KANBOARD_CONFIG}:/var/www/app/data/config.php
+      - ${KANBOARD_PLUGINS_DIR}:/var/www/app/plugins
+      - kanboard_ssl:/etc/nginx/ssl
+      - ${KANBOARD_SSL_DIR}:/etc/nginx/ssl
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.routers.kanboard.rule=Host(`kanboard.${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.kanboard.entrypoints=https"
+      - "traefik.http.routers.kanboard.tls=true"
+      - "traefik.http.routers.kanboard.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.kanboard.tls.domains[0].main=${TRAEFIK_DOMAIN}"
+      - "traefik.http.routers.kanboard.tls.domains[0].sans=*.${TRAEFIK_DOMAIN}"
+
+volumes:
+  kanboard_ssl:
+    external: true
+
+networks:
+  traefik_net:
+    external: true

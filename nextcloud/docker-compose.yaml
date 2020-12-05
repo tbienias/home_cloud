@@ -1,0 +1,70 @@
+version: "3.5"
+
+services:
+
+  nextcloud_db:
+    image: mariadb:${NC_DB_VERSION}
+    container_name: "nextcloud_db"
+    restart: "unless-stopped"
+    command:
+      - --transaction-isolation=READ-COMMITTED 
+      - --binlog-format=ROW
+    env_file:
+      - "../global.env"
+      - "./nextcloud.env"
+    networks: 
+      - "nextcloud_net"
+    volumes:
+      - "nextcloud_mysql:/var/lib/mysql"
+
+  nextcloud:
+    image: "nextcloud:${NC_VERSION}"
+    container_name: "nextcloud"
+    depends_on: 
+      - "nextcloud_db"
+    restart: "unless-stopped"
+    env_file: 
+      - "../global.env"
+      - "./nextcloud.env"
+    networks:
+      - "nextcloud_net"
+      - "traefik_net"
+    volumes:
+      - "nextcloud_html:/var/www/html"
+      - "nextcloud_apps:/var/www/html/custom_apps"
+      - "nextcloud_config:/var/www/html/config"
+      - "${NC_DATA_DIR}:/var/www/html/data"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=traefik_net"
+      - "traefik.http.middlewares.nextcloud-redirectregex.redirectregex.regex=https://(.*)/.well-known/(card|cal)dav"
+      - "traefik.http.middlewares.nextcloud-redirectregex.redirectregex.replacement=https://$$1/remote.php/dav/"
+      - "traefik.http.middlewares.nextcloud-redirectregex.redirectregex.permanent=true"      
+      - "traefik.http.middlewares.nextcloud-headers.headers.stsseconds=15552000"      
+      - "traefik.http.middlewares.nextcloud-headers.headers.forcestsheader=true"      
+      - "traefik.http.middlewares.nextcloud-headers.headers.stspreload=true"      
+      - "traefik.http.middlewares.nextcloud-headers.headers.stsincludesubdomains=true"      
+      - "traefik.http.middlewares.nextcloud-headers.headers.customframeoptionsvalue=SAMEORIGIN"      
+      - "traefik.http.routers.nextcloud.rule=Host(`nextcloud.${TRAEFIK_DOMAIN}`, `nc.${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.nextcloud.entrypoints=https"
+      - "traefik.http.routers.nextcloud.tls=true"
+      - "traefik.http.routers.nextcloud.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.nextcloud.tls.domains[0].main=${TRAEFIK_DOMAIN}"
+      - "traefik.http.routers.nextcloud.tls.domains[0].sans=*.${TRAEFIK_DOMAIN}"
+      - "traefik.http.routers.nextcloud.middlewares=nextcloud-redirectregex@docker,nextcloud-headers@docker"
+
+volumes:
+  nextcloud_html:
+    external: true
+  nextcloud_apps:
+    external: true
+  nextcloud_config:
+    external: true
+  nextcloud_mysql:
+    external: true
+
+networks:
+  nextcloud_net:
+    external: true
+  traefik_net:
+    external: true

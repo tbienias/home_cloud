@@ -1,0 +1,48 @@
+version: "3.5"
+
+services:
+
+  teamspeak_db:
+    image: mariadb:${TS_DB_VERSION}
+    container_name: "teamspeak_db"
+    restart: "unless-stopped"
+    env_file:
+      - "../global.env"
+      - "./teamspeak_db.env"
+    networks:
+      - "teamspeak_net"
+    volumes:
+      - "teamspeak_mysql:/var/lib/mysql"
+
+  teamspeak:
+    image: "teamspeak:${TS_VERSION}"
+    container_name: "teamspeak"
+    depends_on:
+      - "teamspeak_db"
+    restart: "unless-stopped"
+    env_file:
+      - "../global.env"
+      - "./teamspeak.env"
+    ports:
+      - "9987:9987/udp" # Default
+      # - "10011:10011" # Serverquery
+      # - "30033:30033" # Filetransfer
+      # - "41144:41144" # tsdns
+    networks:
+      - "teamspeak_net"
+    volumes:
+      - "teamspeak_data:/var/ts3server"
+
+volumes:
+  teamspeak_data:
+    external: true
+  teamspeak_mysql:
+    external: true
+
+networks:
+  teamspeak_net:
+    external: true
+
+# Notes:
+# Might be neccessary to start database alone at first run,
+# because teamspeak could fail due to unintialized db.

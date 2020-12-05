@@ -1,0 +1,65 @@
+version: "3.5"
+
+services:
+
+  traefik:
+    image: "traefik:${TRAEFIK_VERSION}"
+    container_name: "traefik"
+    restart: "unless-stopped"
+    command:
+      # Global settings.
+      - --global.checknewversion=false
+      - --global.sendanonymoususage=false
+      # Log settings.
+      - --log
+      - --log.level=${TRAEFIK_LOG_LEVEL}
+      # Activate docker provider, but do not expose every container to traefik.
+      # Also assign a docker network created manually.
+      - --providers.docker
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=traefik_net
+      # Turn on public API & dashboard.
+      # - --api
+      # - --api.dashboard
+      # - --api.insecure # Expose insecure dashboard for testing.
+      # Ports for entering the server.
+      - --entrypoints.http.address=:80
+      - --entrypoints.https.address=:443
+      # Select TLS challenge method for HTTPS. Set caserver for testing so that rate limits do not kick in.
+      # - --certificatesresolvers.letsencrypt.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/acme.json
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge=true
+      - --certificatesresolvers.letsencrypt.acme.dnschallenge.provider=${TRAEFIK_ACME_PROVIDER}
+    env_file:
+      - "../global.env"
+      - "./traefik.env"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      # Make sure acme.json exists and permissions default to 600.
+      - "/opt/traefik/letsencrypt/acme.json:/acme.json"
+    networks: 
+      - traefik_net
+    labels:
+      # Enable traefik.
+      - "traefik.enable=true"
+      # Global HTTP to HTTPS redirect.
+      - "traefik.http.routers.http-to-https.rule=hostregexp(`{host:.+}`)"
+      - "traefik.http.routers.http-to-https.entrypoints=http"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.routers.http-to-https.middlewares=redirect-to-https"
+      # Dashboard functionality.
+      - "traefik.http.routers.traefik.rule=Host(`traefik.${TRAEFIK_DOMAIN}`)"
+      - "traefik.http.routers.traefik.entrypoints=https"
+      - "traefik.http.routers.traefik.service=api@internal"
+      - "traefik.http.routers.traefik.tls=true"
+      - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+      - "traefik.http.routers.traefik.tls.domains[0].main=${TRAEFIK_DOMAIN}"
+      - "traefik.http.routers.traefik.tls.domains[0].sans=*.${TRAEFIK_DOMAIN}"
+
+networks:
+  traefik_net:
+    external: true
